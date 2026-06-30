@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>導護輪值紀錄系統</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --primary: #2563eb;
+  --normal: #16a34a;
+  --normal-bg: #dcfce7;
+  --late: #d97706;
+  --late-bg: #fef3c7;
+  --absent: #dc2626;
+  --absent-bg: #fee2e2;
+  --weekend: #9ca3af;
+  --weekend-bg: #f3f4f6;
+  --border: #e5e7eb;
+  --shadow: 0 1px 3px rgba(0,0,0,.1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 15px;
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--primary);
+  color: #fff;
+  padding: 14px 16px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+}
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.header h1 { font-size: 18px; font-weight: 700; }
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.month-nav button {
+  background: rgba(255,255,255,.2);
+  border: none;
+  color: #fff;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .2s;
+}
+.month-nav button:hover { background: rgba(255,255,255,.35); }
+.month-nav span { font-size: 16px; font-weight: 600; min-width: 90px; text-align: center; }
+
+/* ── TABS ── */
+.tabs {
+  display: flex;
+  border-top: 1px solid rgba(255,255,255,.2);
+}
+.tab {
+  flex: 1;
+  padding: 10px 4px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,.7);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all .2s;
+}
+.tab.active {
+  color: #fff;
+  border-bottom-color: #fff;
+  font-weight: 700;
+}
+
+/* ── CONTENT ── */
+.content { padding: 16px; max-width: 900px; margin: 0 auto; }
+
+/* ── WEEK NAV ── */
+.week-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: var(--shadow);
+  margin-bottom: 10px;
+}
+.week-nav-bar .week-range {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  text-align: center;
+}
+.week-nav-bar .week-range small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: #64748b;
+  margin-top: 1px;
+}
+.week-arrow {
+  background: #f1f5f9;
+  border: none;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  cursor: pointer;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.week-arrow:hover { background: #e2e8f0; }
+
+.week-quick-btns {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.quick-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .15s;
+}
+.quick-btn:hover { opacity: .85; }
+.quick-btn.all-normal { background: var(--normal-bg); color: var(--normal); border: 1.5px solid var(--normal); }
+.quick-btn.all-clear  { background: #f1f5f9; color: #64748b; border: 1.5px solid var(--border); }
+
+/* ── WEEK TABLE ── */
+.week-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  background: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+.week-table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 13px;
+}
+.week-table th, .week-table td {
+  border: 1px solid var(--border);
+  text-align: center;
+  white-space: nowrap;
+}
+.week-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  padding: 8px 6px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.week-table th.th-name {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  text-align: left;
+  padding-left: 12px;
+  min-width: 90px;
+}
+.week-table td.td-name {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+  text-align: left;
+  padding: 6px 8px 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 90px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.week-table td.day-cell {
+  width: 54px;
+  height: 46px;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 700;
+  transition: filter .1s;
+  user-select: none;
+}
+.week-table td.day-cell:hover { filter: brightness(.93); }
+.week-table td.day-cell.c-normal  { background: var(--normal-bg); color: var(--normal); }
+.week-table td.day-cell.c-late    { background: var(--late-bg);   color: var(--late); }
+.week-table td.day-cell.c-absent  { background: var(--absent-bg); color: var(--absent); }
+.week-table td.day-cell.c-empty   { background: #fff; color: #cbd5e1; }
+.week-table td.day-cell.c-holiday { background: var(--weekend-bg); color: var(--weekend); cursor: not-allowed; font-size: 11px; line-height: 1.3; }
+.week-table th.th-holiday         { background: #e9ebef; color: var(--weekend); }
+.holiday-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border-radius: 16px;
+  padding: 4px 10px 4px 12px;
+  font-size: 13px;
+  margin: 3px;
+}
+.holiday-chip .hdate { color: #64748b; font-size: 11px; margin-right: 2px; }
+.holiday-chip .hname { font-weight: 500; }
+.holiday-chip .hbuilt { font-size: 10px; color: #94a3b8; }
+.holiday-chip button { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 15px; padding: 0 2px; line-height: 1; }
+.holiday-chip button:hover { color: var(--absent); }
+.week-table td.th-batch {
+  width: 52px;
+  padding: 4px;
+}
+.batch-btn {
+  border: 1.5px solid var(--border);
+  background: #f8fafc;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 5px;
+  cursor: pointer;
+  color: #475569;
+  width: 44px;
+  line-height: 1.3;
+  font-family: inherit;
+  transition: all .15s;
+}
+.batch-btn:hover { background: var(--normal-bg); border-color: var(--normal); color: var(--normal); }
+.batch-btn.all-set { background: var(--normal-bg); border-color: var(--normal); color: var(--normal); }
+.week-table tfoot td {
+  background: #f8fafc;
+  font-size: 12px;
+  color: #475569;
+  padding: 5px 4px;
+  font-weight: 500;
+}
+.week-table tfoot td.td-name { background: #f1f5f9; font-weight: 600; font-size: 12px; }
+.count-badge {
+  display: inline-block;
+  background: var(--normal);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.weekend-notice {
+  text-align: center;
+  padding: 32px;
+  color: var(--weekend);
+  font-size: 15px;
+}
+
+/* ── MONTH TABLE ── */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  background: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 12px;
+}
+table th, table td {
+  border: 1px solid var(--border);
+  padding: 6px 4px;
+  text-align: center;
+  white-space: nowrap;
+}
+table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.col-name {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #f1f5f9;
+  text-align: left;
+  padding-left: 10px;
+  min-width: 80px;
+  font-weight: 600;
+}
+td.col-name {
+  background: #fff;
+  font-weight: 500;
+  font-size: 13px;
+  z-index: 1;
+}
+.cell-normal { background: var(--normal-bg); color: var(--normal); font-weight: 700; }
+.cell-late   { background: var(--late-bg);   color: var(--late);   font-weight: 700; }
+.cell-absent { background: var(--absent-bg); color: var(--absent); font-weight: 700; }
+.cell-weekend { background: var(--weekend-bg); color: var(--weekend); }
+th.weekend   { background: #e9ebef; color: var(--weekend); }
+.col-total { background: #dbeafe; color: #1e40af; font-weight: 700; }
+.col-amount { background: #fce7f3; color: #9d174d; font-weight: 700; }
+td.col-total  { background: #eff6ff; color: #1e40af; font-weight: 700; }
+td.col-amount { background: #fdf4ff; color: #86198f; font-weight: 700; }
+
+/* ── SUMMARY ── */
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.card .label { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+.card .value { font-size: 24px; font-weight: 700; }
+.card.total-amount .value { color: #9d174d; }
+.card.normal-count .value { color: var(--normal); }
+.card.late-count .value   { color: var(--late); }
+.card.absent-count .value { color: var(--absent); }
+
+.summary-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  background: #fff;
+}
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.summary-table th, .summary-table td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 14px;
+}
+.summary-table th { background: #f1f5f9; font-weight: 600; }
+.summary-table .name-col { text-align: left; min-width: 90px; }
+.summary-table .amount-col { color: #9d174d; font-weight: 700; }
+.summary-table .normal-col { color: var(--normal); font-weight: 600; }
+.summary-table .late-col   { color: var(--late);   }
+.summary-table .absent-col { color: var(--absent); }
+.summary-table tr:hover { background: #f8fafc; }
+.summary-table tfoot td { background: #f1f5f9; font-weight: 700; font-size: 14px; }
+
+/* ── STAFF MANAGE ── */
+.staff-manage {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  margin-top: 16px;
+}
+.staff-manage h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #475569; }
+.add-staff-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.add-staff-row input {
+  flex: 1;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+}
+.add-staff-row input:focus { border-color: var(--primary); }
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-primary:hover { background: #1d4ed8; }
+.staff-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.staff-chip {
+  background: #f1f5f9;
+  border-radius: 16px;
+  padding: 4px 12px 4px 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.staff-chip button {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.staff-chip button:hover { color: var(--absent); }
+
+/* ── LEGEND ── */
+.legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* ── PRINT ── */
+.tab-btn-row { float: right; display: flex; gap: 8px; align-items: center; margin-bottom: 2px; }
+.print-btn {
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+.print-btn:hover { background: #f1f5f9; }
+.export-btn {
+  background: #fff;
+  border: 1.5px solid var(--normal);
+  color: var(--normal);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+}
+.export-btn:hover { background: var(--normal-bg); }
+.print-title { display: none; }
+
+/* ── ADMIN ── */
+.admin-section { background:#fff; border-radius:12px; padding:20px; box-shadow:var(--shadow); margin-bottom:16px; }
+.admin-section h3 { font-size:15px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+.activity-table { width:100%; border-collapse:collapse; font-size:13px; }
+.activity-table th { background:#f1f5f9; font-weight:600; padding:8px 10px; text-align:left; border-bottom:2px solid var(--border); }
+.activity-table td { padding:8px 10px; border-bottom:1px solid var(--border); }
+.activity-table tr:last-child td { border-bottom:none; }
+.activity-table tr:hover td { background:#f8fafc; }
+.act-time { color:#94a3b8; font-size:12px; white-space:nowrap; }
+.act-status-normal { color:var(--normal); font-weight:600; }
+.act-status-late   { color:var(--late);   font-weight:600; }
+.act-status-absent { color:var(--absent); font-weight:600; }
+.act-status-empty  { color:#94a3b8; }
+.pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--normal); animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.year-stat-table { width:100%; border-collapse:collapse; font-size:13px; overflow-x:auto; display:block; }
+.year-stat-table th, .year-stat-table td { border:1px solid var(--border); padding:7px 8px; text-align:center; white-space:nowrap; }
+.year-stat-table th { background:#f1f5f9; font-weight:600; position:sticky; top:0; }
+.year-stat-table .name-col { text-align:left; padding-left:12px; position:sticky; left:0; background:#fff; z-index:1; }
+.year-stat-table th.name-col { background:#f1f5f9; z-index:2; }
+.year-stat-table .grand-total { background:#eff6ff; font-weight:700; color:#1e40af; }
+.year-stat-table .grand-amount { background:#fdf4ff; font-weight:700; color:#86198f; }
+.year-stat-table td.zero { color:#e2e8f0; }
+.load-year-btn { background:var(--primary); color:#fff; border:none; border-radius:8px; padding:9px 20px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }
+.load-year-btn:hover { background:#1d4ed8; }
+.admin-empty { text-align:center; padding:24px; color:#94a3b8; font-size:14px; }
+
+/* ══ DESKTOP ══ */
+@media (min-width: 768px) {
+  body { font-size: 16px; }
+
+  .header { padding: 16px 32px 0; }
+  .header h1 { font-size: 22px; letter-spacing: .3px; }
+  .header-top { margin-bottom: 16px; }
+  .month-nav span { font-size: 18px; min-width: 120px; }
+  .month-nav button { width: 36px; height: 36px; font-size: 20px; }
+
+  .tab { font-size: 15px; padding: 12px 16px; }
+
+  .content { padding: 24px 36px; max-width: 1500px; }
+
+  /* ── Week nav ── */
+  .week-nav-bar { padding: 16px 24px; margin-bottom: 14px; }
+  .week-arrow { width: 44px; height: 44px; font-size: 22px; border-radius: 10px; }
+  .week-range { font-size: 17px; }
+  .week-range small { font-size: 13px; }
+
+  .week-quick-btns { gap: 14px; margin-bottom: 14px; }
+  .quick-btn { font-size: 15px; padding: 11px 26px; border-radius: 10px; }
+
+  /* ── Week table ── */
+  .week-table-wrap { border-radius: 12px; }
+  .week-table { font-size: 14px; }
+  .week-table th { padding: 14px 8px; font-size: 14px; }
+  .week-table th.th-name { min-width: 160px; }
+  .week-table td.td-name {
+    min-width: 160px; max-width: 220px;
+    font-size: 15px;
+    padding: 10px 12px 10px 20px;
+  }
+  .week-table td.day-cell { width: 96px; height: 68px; font-size: 26px; }
+  .week-table td.day-cell.c-holiday { font-size: 12px; }
+  .week-table tfoot td { font-size: 13px; padding: 9px 4px; }
+  .week-table td.th-batch { width: 84px; padding: 6px; }
+  .batch-btn { width: 72px; font-size: 12px; padding: 8px 6px; border-radius: 8px; }
+  .count-badge { font-size: 12px; padding: 2px 9px; }
+
+  /* ── Summary ── */
+  .summary-cards {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin-bottom: 22px;
+  }
+  .card { padding: 22px 20px; border-radius: 14px; }
+  .card .value { font-size: 34px; }
+  .card .label { font-size: 13px; }
+
+  .summary-table th, .summary-table td { font-size: 15px; padding: 13px 18px; }
+
+  /* ── Month table ── */
+  .table-wrap { border-radius: 12px; }
+  table { font-size: 12.5px; }
+  table th, table td { padding: 8px 4px; }
+  .col-name { min-width: 120px; font-size: 13px; padding-left: 14px; }
+  td.col-name { font-size: 13px; padding-left: 14px; }
+
+  /* ── Legend ── */
+  .legend { font-size: 13px; gap: 22px; margin-bottom: 14px; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 4px; }
+
+  /* ── Print btn ── */
+  .print-btn, .export-btn { padding: 8px 16px; font-size: 13px; border-radius: 9px; }
+
+  /* ── Staff manage ── */
+  .staff-manage { padding: 22px; border-radius: 12px; }
+  .staff-manage h3 { font-size: 15px; margin-bottom: 12px; }
+  .staff-chip { font-size: 14px; padding: 6px 14px 6px 12px; }
+  .holiday-chip { font-size: 14px; padding: 6px 12px 6px 14px; margin: 4px; }
+  .add-staff-row input, .btn-primary { font-size: 15px; padding: 10px 14px; }
+}
+
+/* ══ PRINT (A4 橫向) ══ */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  @page { size: A4 landscape; margin: 9mm 12mm; }
+
+  body { background: #fff; font-size: 10px; }
+
+  /* 隱藏非報表元件 */
+  .header, .tabs,
+  #tab-daily, #tab-summary, #tab-staff, #tab-admin,
+  .tab-btn-row, .legend { display: none !important; }
+
+  #tab-monthly { display: block !important; }
+
+  .content { padding: 0; max-width: none; margin: 0; }
+
+  /* 標題 */
+  .print-title {
+    display: block !important;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 6mm;
+    letter-spacing: 1px;
+  }
+
+  /* 移除 overflow 讓 thead 能重複 */
+  .table-wrap {
+    overflow: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  table { font-size: 8.5px; width: 100%; border-collapse: collapse; table-layout: auto; }
+  table th, table td { border: 0.5pt solid #bbb !important; padding: 3px 2px; }
+
+  /* ★ 標題列每頁重複出現 ★ */
+  thead { display: table-header-group; }
+  tbody { display: table-row-group; }
+  tfoot { display: table-footer-group; }
+  tr    { page-break-inside: avoid; }
+
+  /* 解除 sticky，名字欄不換行讓瀏覽器自動分配足夠寬度 */
+  .col-name {
+    position: static !important;
+    font-size: 8px;
+    padding-left: 4px;
+    white-space: nowrap;
+  }
+  td.col-name {
+    position: static !important;
+    font-size: 8px;
+    padding-left: 4px;
+    white-space: nowrap;
+  }
+
+  /* 保留顏色 */
+  .cell-normal  { background: #dcfce7 !important; color: #16a34a !important; }
+  .cell-late    { background: #fef3c7 !important; color: #d97706 !important; }
+  .cell-absent  { background: #fee2e2 !important; color: #dc2626 !important; }
+  .cell-weekend { background: #f3f4f6 !important; color: #9ca3af !important; }
+  .col-total    { background: #eff6ff !important; color: #1e40af !important; }
+  td.col-total  { background: #eff6ff !important; color: #1e40af !important; }
+  .col-amount   { background: #fdf4ff !important; }
+  td.col-amount { background: #fdf4ff !important; color: #86198f !important; }
+  th.weekend    { background: #e9ebef !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- 載入遮罩 -->
+<div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(255,255,255,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px">
+  <div style="font-size:40px">☁️</div>
+  <div style="font-size:17px;font-weight:700;color:#1e293b">連線中…</div>
+  <div style="font-size:13px;color:#64748b">正在從雲端載入資料</div>
+</div>
+
+<div class="header">
+  <div class="header-top">
+    <h1>🏫 導護輪值紀錄</h1>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span id="syncIndicator" style="font-size:12px;opacity:.8;display:none">⏳ 同步中</span>
+      <div class="month-nav">
+        <button onclick="changeMonth(-1)">‹</button>
+        <span id="monthLabel"></span>
+        <button onclick="changeMonth(1)">›</button>
+      </div>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('daily')">週記錄</div>
+    <div class="tab" onclick="switchTab('monthly')">月報表</div>
+    <div class="tab" onclick="switchTab('summary')">費用統計</div>
+    <div class="tab" onclick="switchTab('staff')">人員管理</div>
+    <div class="tab" onclick="switchTab('admin')">管理後台</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ── TAB: 週記錄 ── -->
+  <div id="tab-daily">
+    <div class="week-nav-bar">
+      <button class="week-arrow" onclick="changeWeek(-1)">‹</button>
+      <div class="week-range">
+        <span id="weekRangeLabel"></span>
+        <small id="weekRangeDate"></small>
+      </div>
+      <button class="week-arrow" onclick="changeWeek(1)">›</button>
+    </div>
+    <div class="week-quick-btns">
+      <button class="quick-btn all-normal" onclick="markWholeWeek('normal')">✓ 整週全部標正常</button>
+      <button class="quick-btn all-clear" onclick="markWholeWeek('')">清除整週</button>
+    </div>
+    <div class="week-table-wrap">
+      <table class="week-table" id="weekTable"></table>
+    </div>
+  </div>
+
+  <!-- ── TAB: 月報表 ── -->
+  <div id="tab-monthly" style="display:none">
+    <div class="print-title" id="printTitle"></div>
+    <div class="tab-btn-row">
+      <button class="export-btn" onclick="exportMonthCSV()">⬇ 匯出 CSV</button>
+      <button class="print-btn" onclick="window.print()">🖨 列印</button>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--normal-bg);border:1px solid var(--normal)"></div>正常 (+100元)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--late-bg);border:1px solid var(--late)"></div>遲到 (不計)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--absent-bg);border:1px solid var(--absent)"></div>缺席 (不計)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--weekend-bg);border:1px solid #d1d5db"></div>假日</div>
+    </div>
+    <div class="table-wrap">
+      <table id="monthTable"></table>
+    </div>
+  </div>
+
+  <!-- ── TAB: 費用統計 ── -->
+  <div id="tab-summary" style="display:none">
+    <div class="summary-cards" id="summaryCards"></div>
+    <div class="tab-btn-row">
+      <button class="export-btn" onclick="exportSummaryCSV()">⬇ 匯出 CSV</button>
+      <button class="print-btn" onclick="window.print()">🖨 列印</button>
+    </div>
+    <div class="summary-table-wrap">
+      <table class="summary-table" id="summaryTable"></table>
+    </div>
+  </div>
+
+  <!-- ── TAB: 人員管理 ── -->
+  <div id="tab-staff" style="display:none">
+    <div class="staff-manage">
+      <h3>新增人員</h3>
+      <div class="add-staff-row">
+        <input id="newStaffInput" type="text" placeholder="輸入姓名後按新增" onkeydown="if(event.key==='Enter')addStaff()">
+        <button class="btn-primary" onclick="addStaff()">新增</button>
+      </div>
+      <h3>目前人員列表（點 × 刪除）</h3>
+      <div class="staff-grid" id="staffGrid"></div>
+    </div>
+
+    <div class="staff-manage" style="margin-top:12px">
+      <h3>📥 批次匯入名單（每行一個名字，順序即為排班與報表順序）</h3>
+      <textarea id="batchStaffInput" rows="8" style="width:100%; border:2px solid var(--border); border-radius:8px; padding:8px; font-family:inherit; outline:none; font-size:14px;" placeholder="張三&#10;李四&#10;王五"></textarea>
+      <button class="btn-primary" style="margin-top:8px" onclick="importBatchStaff()">確認匯入並排序</button>
+    </div>
+
+    <div class="staff-manage" style="margin-top:12px">
+      <h3>➕ 新增自訂假日（颱風假、補班日等）</h3>
+      <div class="add-staff-row" style="flex-wrap:wrap;gap:6px">
+        <input id="holidayDateInput" type="date" style="flex:0 0 auto;border:2px solid var(--border);border-radius:8px;padding:8px;font-size:14px;font-family:inherit;outline:none">
+        <input id="holidayNameInput" type="text" placeholder="假日名稱（如：颱風假）" onkeydown="if(event.key==='Enter')addCustomHoliday()">
+        <button class="btn-primary" onclick="addCustomHoliday()">新增</button>
+      </div>
+      <h3 style="margin-top:12px">📅 本月假日一覽（含國定假日）</h3>
+      <div id="holidayList" style="margin-top:6px"></div>
+    </div>
+
+    <div style="margin-top:12px;padding:12px;background:#fff7ed;border-radius:8px;font-size:13px;color:#92400e;line-height:1.6">
+      ⚠️ 刪除人員不會刪除已記錄的資料，只是從清單移除。<br>
+      💾 所有資料儲存在瀏覽器本機，請勿清除瀏覽器資料。
+    </div>
+  </div>
+
+</div>
+
+  <!-- ── TAB: 管理後台 ── -->
+  <div id="tab-admin" style="display:none">
+
+    <div class="admin-section">
+      <h3><span class="pulse"></span> 即時動態 <small style="font-size:12px;font-weight:400;color:#64748b;margin-left:4px">最近 20 筆操作</small></h3>
+      <div id="activityArea"><div class="admin-empty">載入中…</div></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>📊 年度累計統計</h3>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="load-year-btn" onclick="loadYearStats()">🔄 載入 / 重新整理</button>
+        <span id="yearStatsNote" style="font-size:13px;color:#64748b"></span>
+      </div>
+      <div id="yearStatsArea"><div class="admin-empty">按「載入」以統計所有月份資料</div></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ── 預設人員名單 ──
+const DEFAULT_STAFF = [
+  '詹心儀','陳正弘','周毓華','趙逸婕','江詠馨',
+  '劉燕妮','林益在','廖佳瑩','黃麗蓉','李瑞英',
+  '蔡岳豐','胡敏芳','楊子立','鄭華婷','謝宗仁',
+  '石名薰','馮美蓉','葉心萍','楊劭芸','陳劼謐',
+  '鄒宜庭','李彥蓉','陳巧宜','張馨月','高雅凡',
+  'Richard(2R)','Joseph(2Y)','Stephen(2B)','Tina(2L)','Wilson(5R)',
+  'Adam(2S)','Bernard(6R)','Lolit(6Y)','Charles(3R)','Thomas(6R)',
+  'Kory(3Y)','Stepehen(3B)','Junaid(4R)','Rowena(4Y)','Feng(4B)',
+  'Lisa(5Y)','陳思尹','鄒緯玲','薛元婷','黃谹誠',
+  '楊先翠','鄭羽珊'
+];
+
+// ── 國定假日資料 ──
+// 固定假日：每年相同日期（MM-DD）
+const FIXED_HOLIDAYS = {
+  '01-01': '元旦',
+  '02-28': '和平紀念日',
+  '04-04': '兒童節',
+  '05-01': '勞動節',
+  '10-10': '國慶日',
+};
+// 農曆節日（每年不同，逐年列出）
+const LUNAR_HOLIDAYS = {
+  // 2025
+  '2025-01-27': '春節',
+  '2025-01-28': '除夕',
+  '2025-01-29': '春節',
+  '2025-01-30': '春節',
+  '2025-01-31': '春節',
+  '2025-04-03': '兒童節補假',   // 兒童節4/4週五, 清明4/5週六→4/3補假
+  '2025-05-30': '端午補假',     // 端午5/31週六→5/30補假
+  '2025-10-06': '中秋補假',     // 中秋10/5週日→10/6補假
+  // 2026
+  '2026-02-16': '除夕',
+  '2026-02-17': '春節',
+  '2026-02-18': '春節',
+  '2026-02-19': '春節',
+  '2026-02-20': '春節',
+  '2026-04-03': '清明/兒童節補假', // 4/4週六、4/5週日→4/3補假
+  '2026-06-19': '端午節',
+  '2026-09-25': '中秋補假',     // 中秋9/26週六→9/25補假
+  '2026-10-09': '國慶補假',     // 國慶10/10週六→10/9補假
+};
+
+// ── 假日 STORAGE ──
+function getCustomHolidays() { return _holidayData; }
+function saveCustomHolidays(obj) {
+  _holidayData = obj;
+  setSyncIndicator(true);
+  db.collection('config').doc('holidays').set(obj)
+    .finally(() => setSyncIndicator(false));
+}
+
+// 回傳假日名稱（null = 非假日）
+function getHolidayName(y, m, d) {
+  const dk = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const mmdd = `${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const custom = getCustomHolidays();
+  // 自訂覆蓋（false = 使用者手動移除的內建假日）
+  if (dk in custom) return custom[dk] === false ? null : custom[dk];
+  if (LUNAR_HOLIDAYS[dk])  return LUNAR_HOLIDAYS[dk];
+  if (FIXED_HOLIDAYS[mmdd]) return FIXED_HOLIDAYS[mmdd];
+  return null;
+}
+
+// 非輪值日（週末 or 假日）
+function isNonDutyDay(y, m, d) {
+  return isWeekend(y, m, d) || getHolidayName(y, m, d) !== null;
+}
+
+// ── STATE ──
+let curYear = new Date().getFullYear();
+let curMonth = new Date().getMonth() + 1;
+let curTab = 'daily';
+let curWeekStart = getMonday(new Date()); // always a Monday Date object
+
+const TW_MONTHS = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+const WD_LABELS = ['週一','週二','週三','週四','週五'];
+const STATUS_CYCLE = ['', 'normal', 'late', 'absent'];
+const STATUS_SYM = { normal: '✓', late: '遲', absent: '✗', '': '' };
+
+// ── FIREBASE 初始化 ──
+firebase.initializeApp({
+  apiKey: "AIzaSyCyb565LZpCOqqo08zKAkfTb9uNm7ItEa4",
+  authDomain: "my-teaching-tools-880a8.firebaseapp.com",
+  projectId: "my-teaching-tools-880a8",
+  storageBucket: "my-teaching-tools-880a8.firebasestorage.app",
+  messagingSenderId: "244400647507",
+  appId: "1:244400647507:web:1d88fc6bed34f63b7485a6"
+});
+const db = firebase.firestore();
+// 改用 HTTPS 輪詢，避免學校防火牆擋 WebSocket
+db.settings({ experimentalForceLongPolling: true, useFetchStreams: false });
+db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+
+// ── 本機快取 ──
+let _allMonthData = {};   // { "YYYYMM": { "DD_姓名": status } }
+let _staffList    = null;
+let _holidayData  = {};
+let _monthSubs    = {};   // { "YYYYMM": unsubscribe fn }
+let _initDone     = false;
+
+function midKey(y, m) { return `${y}${String(m).padStart(2,'0')}`; }
+
+// ── STORAGE（讀快取，寫 Firestore） ──
+function getStaff() { return _staffList ?? [...DEFAULT_STAFF]; }
+
+function saveStaff(arr) {
+  _staffList = arr;
+  db.collection('config').doc('staff').set({ list: arr });
+}
+
+function getStatus(y, m, d, name) {
+  const key = `${String(d).padStart(2,'0')}_${name}`;
+  return (_allMonthData[midKey(y, m)] || {})[key] || '';
+}
+
+function setStatus(y, m, d, name, status) {
+  const mid = midKey(y, m);
+  const key = `${String(d).padStart(2,'0')}_${name}`;
+  // 立即更新本機快取（響應式 UI）
+  if (!_allMonthData[mid]) _allMonthData[mid] = {};
+  if (status) _allMonthData[mid][key] = status;
+  else delete _allMonthData[mid][key];
+  // 同步到 Firestore（背景）
+  setSyncIndicator(true);
+  const ref = db.collection('records').doc(mid);
+  const val = status ? status : firebase.firestore.FieldValue.delete();
+  ref.set({ [key]: val }, { merge: true })
+    .finally(() => setSyncIndicator(false));
+  // 寫入活動記錄
+  db.collection('activity').doc(Date.now().toString()).set({
+    name,
+    date: `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`,
+    status: status || '取消',
+    ts: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+function setSyncIndicator(on) {
+  const el = document.getElementById('syncIndicator');
+  if (!el) return;
+  el.style.display = '';
+  if (on) {
+    el.textContent = '⏳ 同步中';
+    el.style.color = 'rgba(255,255,255,.8)';
+  } else {
+    el.textContent = '☁️ 已同步';
+    el.style.color = 'rgba(255,255,255,.9)';
+    setTimeout(() => { if (el.textContent === '☁️ 已同步') el.style.display = 'none'; }, 2000);
+  }
+}
+
+// ── 訂閱月份資料 ──
+function subscribeMonth(y, m) {
+  const mid = midKey(y, m);
+  if (_monthSubs[mid]) return; // 已訂閱
+  _monthSubs[mid] = db.collection('records').doc(mid)
+    .onSnapshot(snap => {
+      _allMonthData[mid] = snap.exists ? snap.data() : {};
+      if (y === curYear && m === curMonth) renderCurrentTab();
+    }, err => console.warn('Firestore error:', err));
+}
+
+// ── HELPERS ──
+function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+function isWeekend(y, m, d) { const w = new Date(y, m-1, d).getDay(); return w===0||w===6; }
+function weekdayStr(y, m, d) { return '日一二三四五六'[new Date(y, m-1, d).getDay()]; }
+function fmtDate(dt) {
+  return `${dt.getMonth()+1}/${dt.getDate()}`;
+}
+function escQ(s) { return s.replace(/'/g, "\\'"); }
+
+// Returns Monday of the week containing date d
+function getMonday(d) {
+  const dt = new Date(d); dt.setHours(0,0,0,0);
+  const day = dt.getDay();
+  dt.setDate(dt.getDate() - (day === 0 ? 6 : day - 1));
+  return dt;
+}
+// Returns array of 5 Date objects (Mon–Fri) for curWeekStart
+function getWeekDays() {
+  return Array.from({length: 5}, (_, i) => {
+    const d = new Date(curWeekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+}
+
+// ── HEADER ──
+function renderHeader() {
+  document.getElementById('monthLabel').textContent = `${curYear}年${TW_MONTHS[curMonth-1]}`;
+}
+
+// ── TAB SWITCH ──
+function switchTab(tab) {
+  curTab = tab;
+  ['daily','monthly','summary','staff','admin'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t === tab ? '' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', ['daily','monthly','summary','staff','admin'][i] === tab);
+  });
+  if (tab === 'daily')   renderWeekView();
+  if (tab === 'monthly') renderMonthTable();
+  if (tab === 'summary') renderSummary();
+  if (tab === 'staff')   renderStaffManage();
+  if (tab === 'admin')   initAdminTab();
+}
+
+function changeMonth(delta) {
+  curMonth += delta;
+  if (curMonth > 12) { curMonth = 1; curYear++; }
+  if (curMonth < 1)  { curMonth = 12; curYear--; }
+  renderHeader();
+  subscribeMonth(curYear, curMonth);
+  if (curTab === 'daily') {
+    curWeekStart = getMonday(new Date(curYear, curMonth-1, 1));
+  }
+  switchTab(curTab);
+}
+
+// ── WEEK NAVIGATION ──
+function changeWeek(delta) {
+  curWeekStart.setDate(curWeekStart.getDate() + delta * 7);
+  const newYear  = curWeekStart.getFullYear();
+  const newMonth = curWeekStart.getMonth() + 1;
+  if (newYear !== curYear || newMonth !== curMonth) {
+    curYear = newYear; curMonth = newMonth;
+    renderHeader();
+    subscribeMonth(curYear, curMonth);
+  }
+  renderWeekView();
+}
+
+// ── TAB: 週記錄 ──
+function renderWeekView() {
+  const days = getWeekDays(); // [Mon, Tue, Wed, Thu, Fri] as Date objects
+  const fri  = days[4];
+  const mon  = days[0];
+
+  // Week range label
+  const sameMonth = mon.getMonth() === fri.getMonth();
+  document.getElementById('weekRangeLabel').textContent =
+    sameMonth
+      ? `${mon.getMonth()+1}月第 ${getWeekNum(mon)} 週`
+      : `${mon.getMonth()+1}月/${fri.getMonth()+1}月 跨週`;
+  document.getElementById('weekRangeDate').textContent =
+    `${fmtDate(mon)}（一）～ ${fmtDate(fri)}（五）`;
+
+  const staff = getStaff();
+
+  // Build table header
+  let thead = '<thead><tr><th class="th-name">姓名</th>';
+  days.forEach((dt, i) => {
+    const y = dt.getFullYear(), m = dt.getMonth()+1, d = dt.getDate();
+    const hname = getHolidayName(y, m, d);
+    const cls = hname ? 'th-holiday' : '';
+    const label = hname ? `<small style="font-size:10px">${hname}</small>` : `<small style="font-weight:400">${fmtDate(dt)}</small>`;
+    thead += `<th class="${cls}">${WD_LABELS[i]}<br>${label}</th>`;
+  });
+  thead += '<th>整週</th></tr></thead>';
+
+  // Count per day (for footer)
+  const dayCounts = days.map(dt => {
+    const y = dt.getFullYear(), m = dt.getMonth()+1, d = dt.getDate();
+    if (isNonDutyDay(y, m, d)) return -1; // -1 = holiday/weekend
+    return staff.filter(n => getStatus(y, m, d, n) === 'normal').length;
+  });
+
+  // Build rows
+  const tbody = staff.map(name => {
+    const statuses = days.map(dt => {
+      const y = dt.getFullYear(), m = dt.getMonth()+1, d = dt.getDate();
+      if (isNonDutyDay(y, m, d)) return '__holiday__';
+      return getStatus(y, m, d, name);
+    });
+    const dutyDays = days.filter((dt, i) => statuses[i] !== '__holiday__');
+    const allNormal = dutyDays.length > 0 && statuses.filter(s => s !== '__holiday__').every(s => s === 'normal');
+
+    const cells = days.map((dt, i) => {
+      const y = dt.getFullYear(), m = dt.getMonth()+1, d = dt.getDate();
+      const s = statuses[i];
+      if (s === '__holiday__') {
+        const hname = getHolidayName(y, m, d) || '假日';
+        return `<td class="day-cell c-holiday" title="${hname}">${hname}</td>`;
+      }
+      const sym = STATUS_SYM[s] || '';
+      return `<td class="day-cell c-${s||'empty'}"
+        onclick="toggleCell('${escQ(name)}',${y},${m},${d})"
+        title="${name} ${fmtDate(dt)}">${sym}</td>`;
+    }).join('');
+
+    return `<tr>
+      <td class="td-name" title="${name}">${name}</td>
+      ${cells}
+      <td class="th-batch">
+        <button class="batch-btn${allNormal?' all-set':''}"
+          onclick="batchWeek('${escQ(name)}')"
+          title="${allNormal?'清除整週':'整週標正常'}">
+          ${allNormal?'清除':'整週\n正常'}
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Footer: count per day
+  let tfoot = '<tfoot><tr><td class="td-name">到勤人數</td>';
+  dayCounts.forEach(c => {
+    tfoot += c === -1
+      ? `<td style="color:var(--weekend)">假</td>`
+      : `<td>${c ? '<span class="count-badge">'+c+'</span>' : '—'}</td>`;
+  });
+  tfoot += '<td></td></tr></tfoot>';
+
+  document.getElementById('weekTable').innerHTML = thead + `<tbody>${tbody}</tbody>` + tfoot;
+}
+
+function getWeekNum(mon) {
+  // Which week of the month (1-based)
+  return Math.ceil((mon.getDate() + new Date(mon.getFullYear(), mon.getMonth(), 1).getDay() - 1) / 7);
+}
+
+function toggleCell(name, y, m, d) {
+  const cur = getStatus(y, m, d, name);
+  const idx = STATUS_CYCLE.indexOf(cur);
+  const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+  setStatus(y, m, d, name, next);
+  renderWeekView();
+}
+
+function batchWeek(name) {
+  const days = getWeekDays().filter(dt => {
+    const y = dt.getFullYear(), m = dt.getMonth()+1, d = dt.getDate();
+    return !isNonDutyDay(y, m, d);
+  });
+  const allNormal = days.every(dt => {
+    const y = dt.getFullYear(), m = dt.getMonth()+1, d = dt.getDate();
+    return getStatus(y, m, d, name) === 'normal';
+  });
+  days.forEach(dt => {
+    const y = dt.getFullYear(), m = dt.getMonth()+1, d = dt.getDate();
+    setStatus(y, m, d, name, allNormal ? '' : 'normal');
+  });
+  renderWeekView();
+}
+
+function markWholeWeek(status) {
+  const staff = getStaff();
+  getWeekDays().forEach(dt => {
+    const y = dt.getFullYear(), m = dt.getMonth()+1, d = dt.getDate();
+    if (isNonDutyDay(y, m, d)) return;
+    staff.forEach(name => setStatus(y, m, d, name, status));
+  });
+  renderWeekView();
+}
+
+// ── TAB: 月報表 ──
+function renderMonthTable() {
+  const days = daysInMonth(curYear, curMonth);
+  
+  // 智慧偵測：從本月資料庫紀錄中找出所有有出勤紀錄的人員（解決人員刪除/換年級問題）
+  const currentStaff = getStaff();
+  const monthData = _allMonthData[midKey(curYear, curMonth)] || {};
+  const namesWithRecords = new Set();
+  Object.keys(monthData).forEach(key => {
+    if (key.includes('_')) {
+      namesWithRecords.add(key.split('_')[1]);
+    }
+  });
+  
+  // 排序：依據目前名單的順序排列，已刪除的舊人員排在最後面
+  const staff = Array.from(namesWithRecords).sort((a, b) => {
+    const idxA = currentStaff.indexOf(a);
+    const idxB = currentStaff.indexOf(b);
+    if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+    if (idxA === -1) return 1;
+    if (idxB === -1) return -1;
+    return idxA - idxB;
+  });
+
+  // header row
+  let th = '<tr><th class="col-name">姓名</th>';
+  for (let d = 1; d <= days; d++) {
+    const nonDuty = isNonDutyDay(curYear, curMonth, d);
+    const hname   = getHolidayName(curYear, curMonth, d);
+    const cls = nonDuty ? 'weekend' : '';
+    const sub = hname
+      ? `<small style="font-size:9px">${hname}</small>`
+      : `<small>${weekdayStr(curYear,curMonth,d)}</small>`;
+    th += `<th class="${cls}">${d}<br>${sub}</th>`;
+  }
+  th += '<th class="col-total">天數</th><th class="col-amount">金額</th></tr>';
+
+  // data rows
+  const rows = staff.map(name => {
+    let normalDays = 0;
+    let cells = '';
+    for (let d = 1; d <= days; d++) {
+      if (isNonDutyDay(curYear, curMonth, d)) {
+        cells += '<td class="cell-weekend">—</td>'; continue;
+      }
+      const s = getStatus(curYear, curMonth, d, name);
+      if (s === 'normal') normalDays++;
+      cells += `<td class="${s?'cell-'+s:''}">${STATUS_SYM[s]||''}</td>`;
+    }
+    const amount = normalDays * 100;
+    return `<tr>
+      <td class="col-name">${name}</td>
+      ${cells}
+      <td class="col-total">${normalDays || ''}</td>
+      <td class="col-amount">${amount ? amount.toLocaleString() : ''}</td>
+    </tr>`;
+  }).join('');
+
+  // 合計列（tfoot）
+  let totalNormal = 0, totalAmount = 0;
+  staff.forEach(name => {
+    for (let d = 1; d <= days; d++) {
+      if (!isNonDutyDay(curYear, curMonth, d) && getStatus(curYear, curMonth, d, name) === 'normal')
+        totalNormal++;
+    }
+  });
+  totalAmount = totalNormal * 100;
+  const tfoot = `<tfoot><tr>
+    <td class="col-name" style="font-weight:700">合計</td>
+    ${Array.from({length: days}, (_, i) => `<td></td>`).join('')}
+    <td class="col-total">${totalNormal}</td>
+    <td class="col-amount">$${totalAmount.toLocaleString()}</td>
+  </tr></tfoot>`;
+
+  document.getElementById('printTitle').textContent =
+    `${curYear} 年 ${TW_MONTHS[curMonth-1]}　導護輪值紀錄`;
+  document.getElementById('monthTable').innerHTML = staff.length === 0
+    ? `<tbody><tr><td colspan="${days + 3}" style="text-align:center;padding:32px;color:#94a3b8;font-size:14px">本月尚無任何出勤紀錄</td></tr></tbody>`
+    : `<thead>${th}</thead><tbody>${rows}</tbody>${tfoot}`;
+}
+
+// ── CSV 匯出工具 ──
+function csvEscape(val) {
+  const s = String(val ?? '');
+  return (s.includes(',') || s.includes('"') || s.includes('\n'))
+    ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function downloadCSV(filename, content) {
+  const blob = new Blob(['﻿' + content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportMonthCSV() {
+  const days = daysInMonth(curYear, curMonth);
+  const staff = getStaff().filter(name =>
+    Array.from({length: days}, (_, i) => i + 1)
+      .some(d => !isNonDutyDay(curYear, curMonth, d) && getStatus(curYear, curMonth, d, name) !== '')
+  );
+
+  // 標題列
+  const header = ['姓名',
+    ...Array.from({length: days}, (_, i) => {
+      const d = i + 1;
+      return isNonDutyDay(curYear, curMonth, d)
+        ? `${d}(假)` : `${d}(${weekdayStr(curYear, curMonth, d)})`;
+    }),
+    '總天數', '金額(元)'
+  ];
+
+  const dataRows = staff.map(name => {
+    let normalDays = 0;
+    const cells = [name];
+    for (let d = 1; d <= days; d++) {
+      if (isNonDutyDay(curYear, curMonth, d)) { cells.push(''); continue; }
+      const s = getStatus(curYear, curMonth, d, name);
+      if (s === 'normal') { normalDays++; cells.push('正常'); }
+      else if (s === 'late')   cells.push('遲到');
+      else if (s === 'absent') cells.push('缺席');
+      else cells.push('');
+    }
+    cells.push(normalDays, normalDays * 100);
+    return cells;
+  });
+
+  // 合計列
+  const grandTotal = dataRows.reduce((sum, r) => sum + r[r.length - 2], 0);
+  const footer = ['合計', ...Array(days).fill(''), grandTotal, grandTotal * 100];
+
+  const csv = [header, ...dataRows, footer]
+    .map(row => row.map(csvEscape).join(',')).join('\r\n');
+  downloadCSV(`導護輪值_${curYear}${String(curMonth).padStart(2,'0')}_月報表.csv`, csv);
+}
+
+function exportSummaryCSV() {
+  const days = daysInMonth(curYear, curMonth);
+  const header = ['姓名', '正常天數', '遲到', '缺席', '應付金額(元)'];
+  let totalNormal = 0, totalLate = 0, totalAbsent = 0, totalAmount = 0;
+
+  const dataRows = getStaff().map(name => {
+    let normal = 0, late = 0, absent = 0;
+    for (let d = 1; d <= days; d++) {
+      if (isNonDutyDay(curYear, curMonth, d)) continue;
+      const s = getStatus(curYear, curMonth, d, name);
+      if (s === 'normal') normal++;
+      else if (s === 'late')   late++;
+      else if (s === 'absent') absent++;
+    }
+    if (normal + late + absent === 0) return null;
+    totalNormal += normal; totalLate += late;
+    totalAbsent += absent; totalAmount += normal * 100;
+    return [name, normal, late, absent, normal * 100];
+  }).filter(Boolean);
+
+  const footer = ['合計', totalNormal, totalLate, totalAbsent, totalAmount];
+  const csv = [header, ...dataRows, footer]
+    .map(row => row.map(csvEscape).join(',')).join('\r\n');
+  downloadCSV(`導護輪值_${curYear}${String(curMonth).padStart(2,'0')}_費用統計.csv`, csv);
+}
+
+// ── TAB: 費用統計 ──
+function renderSummary() {
+  const currentStaff = getStaff();
+  const monthData = _allMonthData[midKey(curYear, curMonth)] || {};
+  const namesWithRecords = new Set();
+  Object.keys(monthData).forEach(key => {
+    if (key.includes('_')) {
+      namesWithRecords.add(key.split('_')[1]);
+    }
+  });
+  
+  const staff = Array.from(namesWithRecords).sort((a, b) => {
+    const idxA = currentStaff.indexOf(a);
+    const idxB = currentStaff.indexOf(b);
+    if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+    if (idxA === -1) return 1;
+    if (idxB === -1) return -1;
+    return idxA - idxB;
+  });
+  
+  const days = daysInMonth(curYear, curMonth);
+
+  let totalNormal = 0, totalLate = 0, totalAbsent = 0, totalAmount = 0;
+
+  const rows = staff.map(name => {
+    let normal = 0, late = 0, absent = 0;
+    for (let d = 1; d <= days; d++) {
+      if (isNonDutyDay(curYear, curMonth, d)) continue;
+      const s = getStatus(curYear, curMonth, d, name);
+      if (s === 'normal') normal++;
+      else if (s === 'late') late++;
+      else if (s === 'absent') absent++;
+    }
+    if (normal + late + absent === 0) return null;
+    totalNormal += normal;
+    totalLate += late;
+    totalAbsent += absent;
+    const amount = normal * 100;
+    totalAmount += amount;
+    return `<tr>
+      <td class="name-col">${name}</td>
+      <td class="normal-col">${normal}</td>
+      <td class="late-col">${late || ''}</td>
+      <td class="absent-col">${absent || ''}</td>
+      <td class="amount-col">$${amount.toLocaleString()}</td>
+    </tr>`;
+  }).filter(Boolean).join('');
+
+  // cards
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="card normal-count"><div class="label">正常到勤（人次）</div><div class="value">${totalNormal}</div></div>
+    <div class="card late-count"><div class="label">遲到（人次）</div><div class="value">${totalLate}</div></div>
+    <div class="card absent-count"><div class="label">缺席（人次）</div><div class="value">${totalAbsent}</div></div>
+    <div class="card total-amount"><div class="label">本月費用合計</div><div class="value">$${totalAmount.toLocaleString()}</div></div>
+  `;
+
+  document.getElementById('summaryTable').innerHTML = `
+    <thead>
+      <tr>
+        <th class="name-col">姓名</th>
+        <th>正常天數</th>
+        <th>遲到</th>
+        <th>缺席</th>
+        <th>應付金額</th>
+      </tr>
+    </thead>
+    <tbody>${rows || '<tr><td colspan="5" style="color:#94a3b8;padding:20px">本月尚無記錄</td></tr>'}</tbody>
+    <tfoot>
+      <tr>
+        <td>合計</td>
+        <td>${totalNormal}</td>
+        <td>${totalLate || ''}</td>
+        <td>${totalAbsent || ''}</td>
+        <td>$${totalAmount.toLocaleString()}</td>
+      </tr>
+    </tfoot>
+  `;
+}
+
+// ── TAB: 人員管理 ──
+function renderStaffManage() {
+  const staff = getStaff();
+  const chips = staff.map((name, i) =>
+    `<div class="staff-chip">${name}<button onclick="removeStaff(${i})" title="刪除">×</button></div>`
+  ).join('');
+  document.getElementById('staffGrid').innerHTML = chips;
+  
+  // 預先填入目前的教職員名單，方便編輯
+  document.getElementById('batchStaffInput').value = staff.join('\n');
+  
+  renderHolidayList();
+}
+
+function importBatchStaff() {
+  const input = document.getElementById('batchStaffInput').value.trim();
+  if (!input) { alert('請輸入名單！'); return; }
+  const arr = input.split('\n').map(s => s.trim()).filter(Boolean);
+  if (arr.length === 0) return;
+  if (!confirm(`確定要匯入這 ${arr.length} 位人員並覆蓋目前名單嗎？\n（這不會刪除資料庫中的歷史出勤紀錄）`)) return;
+  saveStaff(arr);
+  renderStaffManage();
+  renderCurrentTab();
+  alert('名單已成功匯入並同步至雲端！');
+}
+
+// ── 假日管理 ──
+function renderHolidayList() {
+  const custom = getCustomHolidays();
+  const totalDays = new Date(curYear, curMonth, 0).getDate();
+  const items = [];
+
+  for (let d = 1; d <= totalDays; d++) {
+    const dk = `${curYear}-${String(curMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const mmdd = `${String(curMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    if (isWeekend(curYear, curMonth, d)) continue;
+
+    // Determine if it's a holiday and where it comes from
+    const isCustomAdded   = dk in custom && custom[dk] !== false;
+    const isCustomRemoved = dk in custom && custom[dk] === false;
+    const isLunar  = !isCustomRemoved && LUNAR_HOLIDAYS[dk];
+    const isFixed  = !isCustomRemoved && !isLunar && FIXED_HOLIDAYS[mmdd];
+
+    if (!isCustomAdded && !isLunar && !isFixed) continue;
+
+    const name   = isCustomAdded ? custom[dk] : (isLunar ? LUNAR_HOLIDAYS[dk] : FIXED_HOLIDAYS[mmdd]);
+    const src    = isCustomAdded ? '自訂' : (isFixed ? '固定' : '農曆');
+    const canDel = true; // all non-weekend holidays can be toggled off
+
+    items.push(`<div class="holiday-chip">
+      <span class="hdate">${curMonth}/${d}</span>
+      <span class="hname">${name}</span>
+      <span class="hbuilt">${src}</span>
+      <button onclick="removeHoliday('${dk}')" title="移除此假日">×</button>
+    </div>`);
+  }
+
+  // Also show removed built-ins so user can restore them
+  const removedItems = [];
+  for (const [dk, val] of Object.entries(custom)) {
+    if (val !== false) continue;
+    const [y, m, d] = dk.split('-').map(Number);
+    if (y !== curYear || m !== curMonth) continue;
+    const mmdd = `${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const origName = LUNAR_HOLIDAYS[dk] || FIXED_HOLIDAYS[mmdd] || '假日';
+    removedItems.push(`<div class="holiday-chip" style="opacity:.5;text-decoration:line-through">
+      <span class="hdate">${m}/${d}</span>
+      <span class="hname">${origName}</span>
+      <span class="hbuilt">已停用</span>
+      <button onclick="restoreHoliday('${dk}')" title="恢復此假日" style="text-decoration:none">↩</button>
+    </div>`);
+  }
+
+  const all = [...items, ...removedItems];
+  document.getElementById('holidayList').innerHTML = all.length
+    ? all.join('')
+    : `<span style="font-size:13px;color:#94a3b8">本月無國定假日（週末除外）</span>`;
+}
+
+function addCustomHoliday() {
+  const dateVal = document.getElementById('holidayDateInput').value;
+  const nameVal = document.getElementById('holidayNameInput').value.trim();
+  if (!dateVal || !nameVal) { alert('請填入日期和假日名稱'); return; }
+  const custom = getCustomHolidays();
+  custom[dateVal] = nameVal;
+  saveCustomHolidays(custom);
+  document.getElementById('holidayDateInput').value = '';
+  document.getElementById('holidayNameInput').value = '';
+  renderHolidayList();
+}
+
+function removeHoliday(dk) {
+  const custom = getCustomHolidays();
+  const mmdd = dk.slice(5); // MM-DD
+  const isBuiltIn = LUNAR_HOLIDAYS[dk] || FIXED_HOLIDAYS[mmdd];
+  if (isBuiltIn) {
+    custom[dk] = false; // mark as removed
+  } else {
+    delete custom[dk];
+  }
+  saveCustomHolidays(custom);
+  renderHolidayList();
+}
+
+function restoreHoliday(dk) {
+  const custom = getCustomHolidays();
+  delete custom[dk];
+  saveCustomHolidays(custom);
+  renderHolidayList();
+}
+
+function addStaff() {
+  const input = document.getElementById('newStaffInput');
+  const name = input.value.trim();
+  if (!name) return;
+  const staff = getStaff();
+  if (staff.includes(name)) { alert('此人員已在清單中'); return; }
+  staff.push(name);
+  saveStaff(staff);
+  input.value = '';
+  renderStaffManage();
+}
+
+function removeStaff(idx) {
+  const staff = getStaff();
+  if (!confirm(`確定要從清單移除「${staff[idx]}」嗎？\n（已記錄的資料不會被刪除）`)) return;
+  staff.splice(idx, 1);
+  saveStaff(staff);
+  renderStaffManage();
+}
+
+// ── 管理後台 ──
+let _adminActivityUnsub = null;
+
+function initAdminTab() {
+  // 只訂閱一次
+  if (_adminActivityUnsub) return;
+  _adminActivityUnsub = db.collection('activity')
+    .orderBy('ts', 'desc').limit(20)
+    .onSnapshot(snap => {
+      if (snap.empty) {
+        document.getElementById('activityArea').innerHTML =
+          '<div class="admin-empty">尚無操作記錄</div>';
+        return;
+      }
+      const rows = snap.docs.map(doc => {
+        const d = doc.data();
+        const statusCls = {normal:'act-status-normal',late:'act-status-late',
+          absent:'act-status-absent','取消':'act-status-empty'}[d.status] || '';
+        const statusLabel = {normal:'✓ 正常',late:'遲到',absent:'缺席','取消':'－取消'}[d.status] || d.status;
+        const timeStr = d.ts ? timeAgo(d.ts.toDate()) : '剛剛';
+        return `<tr>
+          <td class="act-time">${timeStr}</td>
+          <td style="font-weight:500">${d.name}</td>
+          <td>${d.date}</td>
+          <td class="${statusCls}">${statusLabel}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('activityArea').innerHTML = `
+        <table class="activity-table">
+          <thead><tr><th>時間</th><th>姓名</th><th>日期</th><th>狀態</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    });
+}
+
+function timeAgo(date) {
+  const sec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (sec < 60)  return '剛剛';
+  if (sec < 3600) return `${Math.floor(sec/60)} 分前`;
+  if (sec < 86400) return `${Math.floor(sec/3600)} 小時前`;
+  return `${Math.floor(sec/86400)} 天前`;
+}
+
+async function loadYearStats() {
+  const note = document.getElementById('yearStatsNote');
+  const area = document.getElementById('yearStatsArea');
+  note.textContent = '載入中…';
+  area.innerHTML = '<div class="admin-empty">⏳ 讀取資料中…</div>';
+
+  // 學年月份：9月 ~ 隔年8月（以 curYear 判斷學年起始）
+  const startYear = curMonth >= 9 ? curYear : curYear - 1;
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    let y = startYear, m = 9 + i;
+    if (m > 12) { m -= 12; y++; }
+    months.push({ y, m, id: midKey(y, m) });
+  }
+
+  // 批次讀取
+  const snaps = await Promise.all(
+    months.map(mo => db.collection('records').doc(mo.id).get())
+  );
+
+  // 聚合：person → { YYYYMM: normalCount }
+  const staff = getStaff();
+  const personData = {}; // { name: { YYYYMM: count } }
+  staff.forEach(n => { personData[n] = {}; });
+
+  snaps.forEach((snap, i) => {
+    const mo = months[i];
+    if (!snap.exists) return;
+    const data = snap.data();
+    Object.entries(data).forEach(([key, status]) => {
+      const name = key.slice(3); // "DD_姓名" → "姓名"
+      if (status === 'normal' && personData[name] !== undefined) {
+        personData[name][mo.id] = (personData[name][mo.id] || 0) + 1;
+      }
+    });
+  });
+
+  // 只顯示有任何紀錄的人
+  const activeStaff = staff.filter(n =>
+    Object.values(personData[n]).some(v => v > 0));
+
+  if (activeStaff.length === 0) {
+    area.innerHTML = '<div class="admin-empty">本學年尚無任何出勤紀錄</div>';
+    note.textContent = '';
+    return;
+  }
+
+  // 表頭
+  const hasMo = months.filter((_, i) => snaps[i].exists);
+  let thead = '<tr><th class="name-col">姓名</th>';
+  hasMo.forEach(mo => {
+    thead += `<th>${mo.y === startYear ? '' : (mo.y-2000)+'/'}${TW_MONTHS[mo.m-1]}</th>`;
+  });
+  thead += '<th class="grand-total">合計天數</th><th class="grand-amount">合計金額</th></tr>';
+
+  // 資料列
+  const tbody = activeStaff.map(name => {
+    let total = 0;
+    let cells = hasMo.map(mo => {
+      const c = personData[name][mo.id] || 0;
+      total += c;
+      return `<td class="${c === 0 ? 'zero' : ''}">${c || '—'}</td>`;
+    }).join('');
+    return `<tr>
+      <td class="name-col">${name}</td>
+      ${cells}
+      <td class="grand-total">${total}</td>
+      <td class="grand-amount">$${(total * 100).toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+
+  const totalDays = activeStaff.reduce((s, n) =>
+    s + Object.values(personData[n]).reduce((a, b) => a + b, 0), 0);
+
+  area.innerHTML = `<div style="overflow-x:auto"><table class="year-stat-table">
+    <thead>${thead}</thead>
+    <tbody>${tbody}</tbody>
+    <tfoot><tr>
+      <td class="name-col" style="font-weight:700">合計</td>
+      ${hasMo.map(() => '<td></td>').join('')}
+      <td class="grand-total">${totalDays}</td>
+      <td class="grand-amount">$${(totalDays * 100).toLocaleString()}</td>
+    </tr></tfoot>
+  </table></div>`;
+  note.textContent = `共 ${activeStaff.length} 人 · ${hasMo.length} 個月有資料`;
+}
+
+// ── 重新渲染目前頁籤 ──
+function renderCurrentTab() {
+  if (curTab === 'daily')   renderWeekView();
+  if (curTab === 'monthly') renderMonthTable();
+  if (curTab === 'summary') renderSummary();
+  if (curTab === 'staff')   renderStaffManage();
+  // admin tab updates itself via its own listener
+}
+
+// ── FIREBASE 啟動 ──
+function updateConnStatus(online) {
+  const el = document.getElementById('syncIndicator');
+  if (!el) return;
+  el.style.display = '';
+  if (online) {
+    el.textContent = '☁️ 已連線';
+    el.style.color = 'rgba(255,255,255,.9)';
+    setTimeout(() => { if (el.textContent === '☁️ 已連線') el.style.display = 'none'; }, 3000);
+  } else {
+    el.textContent = '⚠️ 離線模式';
+    el.style.color = '#fbbf24';
+  }
+}
+
+function initApp() {
+  renderHeader();
+  let staffReady = false, holidayReady = false, monthReady = false;
+
+  // ── 8秒超時：連不上就切離線模式繼續使用 ──
+  const offlineTimer = setTimeout(() => {
+    if (_initDone) return;
+    console.warn('Firebase 連線超時，切換離線模式');
+    _staffList   = _staffList   ?? [...DEFAULT_STAFF];
+    _holidayData = _holidayData ?? {};
+    staffReady = holidayReady = monthReady = true;
+    tryUnlock(false);
+  }, 8000);
+
+  function tryUnlock(online = true) {
+    if (!(staffReady && holidayReady && monthReady) || _initDone) return;
+    clearTimeout(offlineTimer);
+    _initDone = true;
+    document.getElementById('loadingOverlay').style.display = 'none';
+    updateConnStatus(online);
+    renderWeekView();
+  }
+
+  function onErr(role, err) {
+    console.warn('Firestore', role, err);
+    if (role === 'staff')   { _staffList   ??= [...DEFAULT_STAFF]; staffReady   = true; }
+    if (role === 'holiday') { _holidayData ??= {};                  holidayReady = true; }
+    if (role === 'month')   { monthReady   = true; }
+    tryUnlock(false);
+  }
+
+  // 監聽人員清單
+  db.collection('config').doc('staff').onSnapshot(snap => {
+    if (snap.exists) { _staffList = snap.data().list; }
+    else { _staffList = [...DEFAULT_STAFF]; db.collection('config').doc('staff').set({ list: _staffList }); }
+    staffReady = true;
+    if (_initDone) { updateConnStatus(true); renderCurrentTab(); }
+    tryUnlock(true);
+  }, err => onErr('staff', err));
+
+  // 監聽自訂假日
+  db.collection('config').doc('holidays').onSnapshot(snap => {
+    _holidayData = snap.exists ? snap.data() : {};
+    holidayReady = true;
+    if (_initDone) renderCurrentTab();
+    tryUnlock(true);
+  }, err => onErr('holiday', err));
+
+  // 監聽本月出勤紀錄
+  const mid = midKey(curYear, curMonth);
+  _monthSubs[mid] = db.collection('records').doc(mid).onSnapshot(snap => {
+    _allMonthData[mid] = snap.exists ? snap.data() : {};
+    monthReady = true;
+    if (_initDone) renderCurrentTab();
+    tryUnlock(true);
+  }, err => onErr('month', err));
+}
+
+initApp();
+</script>
+</body>
+</html>
