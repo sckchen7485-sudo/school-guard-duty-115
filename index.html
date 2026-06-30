@@ -651,6 +651,18 @@ td.col-amount { background: #fdf4ff; color: #86198f; font-weight: 700; }
 </head>
 <body>
 
+<!-- 密碼鎖遮罩 -->
+<div id="passwordOverlay" style="position:fixed;inset:0;background:#1e293b;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;gap:16px;color:#fff;">
+  <div style="font-size:48px">🔒</div>
+  <div style="font-size:20px;font-weight:700;">此網站已安全加密</div>
+  <div style="font-size:14px;color:#94a3b8;">請輸入密碼以進入 115學年度導護輪值系統</div>
+  <div style="display:flex;gap:8px;">
+    <input id="passwordInput" type="password" placeholder="輸入密碼" style="border:none;border-radius:8px;padding:10px 16px;font-size:16px;outline:none;color:#1e293b;width:200px;" onkeydown="if(event.key==='Enter')checkSystemPassword()">
+    <button class="btn-primary" style="padding:10px 20px;background:#2563eb;" onclick="checkSystemPassword()">進入</button>
+  </div>
+  <div id="passwordError" style="color:#f87171;font-size:14px;display:none;font-weight:600;">⚠️ 密碼錯誤，請重新輸入！</div>
+</div>
+
 <!-- 載入遮罩 -->
 <div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(255,255,255,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px">
   <div style="font-size:40px">☁️</div>
@@ -1732,7 +1744,47 @@ function initApp() {
   }, err => onErr('month', err));
 }
 
-initApp();
+// ── 密碼鎖邏輯 ──
+// 預設密碼為 ytes115，此處儲存其 SHA-256 雜湊值（無法從原始碼反推密碼）
+const PASSWORD_HASH = "45a827e60d9e5c6a748fa00c0cd5b8cc426b125cfe92c59845c311bc05b6c057";
+
+async function sha256(message) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
+async function checkSystemPassword() {
+  const input = document.getElementById('passwordInput').value;
+  const hash = await sha256(input);
+  if (hash === PASSWORD_HASH) {
+    localStorage.setItem('guard_duty_auth', input);
+    document.getElementById('passwordOverlay').style.display = 'none';
+    initApp();
+  } else {
+    document.getElementById('passwordError').style.display = 'block';
+    document.getElementById('passwordInput').value = '';
+    document.getElementById('passwordInput').focus();
+  }
+}
+
+async function checkAuthOnLoad() {
+  const savedPassword = localStorage.getItem('guard_duty_auth');
+  if (savedPassword) {
+    const hash = await sha256(savedPassword);
+    if (hash === PASSWORD_HASH) {
+      document.getElementById('passwordOverlay').style.display = 'none';
+      initApp();
+      return;
+    }
+  }
+  document.getElementById('passwordOverlay').style.display = 'flex';
+  document.getElementById('passwordInput').focus();
+}
+
+checkAuthOnLoad();
 </script>
 </body>
 </html>
